@@ -92,3 +92,20 @@ This log tracks the major design decisions behind this project, why each was mad
 **Why:** All free/open-source except the Claude API, which is used narrowly — to translate already-computed metrics into readable coaching language, not to do the biomechanical analysis itself. Plain Streamlit has no real webcam loop primitive; `streamlit-webrtc` was added specifically to avoid the laggy `st.image()`-in-a-rerun-loop workaround.
 
 **AI's role:** Claude flagged the `streamlit-webrtc` gap before it became a problem discovered mid-build, and helped scope what the Claude API should and shouldn't be responsible for (language generation, not measurement) so the feedback stays grounded in actual pose data rather than the LLM inventing plausible-sounding but unverified critique.
+
+---
+
+## 8. First working prototype: pose estimation smoke test
+
+**Decision:** `core/pose_estimation.py` opens the webcam, runs MediaPipe pose detection on each frame, and draws a skeleton overlay using OpenCV.
+
+**What went wrong first:** The `requirements.txt`-installed `mediapipe` version (1.0.1) turned out to have completely removed the legacy `mp.solutions.pose` API that most tutorials and the original draft of this script were written against — `import mediapipe as mp; mp.solutions` raised `AttributeError`, and even the direct submodule path `mediapipe.python.solutions` no longer exists. This wasn't caught until actually running the code against a live webcam frame.
+
+**Fix:** Rewrote against MediaPipe's current Tasks API (`mediapipe.tasks.python.vision.PoseLandmarker`), which requires downloading a separate `.task` model file rather than using a bundled model. Landmark drawing is now done manually with OpenCV (`cv2.line`/`cv2.circle`) using the standard 33-point BlazePose body connection topology, since the old `drawing_utils` helper went away along with `mp.solutions`.
+
+**Why this is worth logging:** This is a good example of a plan meeting reality — the library had moved on since most of the tutorials/documentation online were written, and the fix was found by actually running the code against a real webcam frame rather than assuming the first draft worked.
+
+**AI's role:** Claude wrote the initial script, hit the `AttributeError` when testing it, researched MediaPipe's current official documentation to confirm the Tasks API is now the only supported path, downloaded the correct model asset from Google's official model hosting, and rewrote the script around it — verified end-to-end against a live webcam frame (33 landmarks successfully detected) before considering the piece done.
+
+**Sources:**
+- [Pose landmark detection guide for Python | Google AI Edge](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/python)
