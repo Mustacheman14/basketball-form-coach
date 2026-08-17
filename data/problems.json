@@ -1,0 +1,61 @@
+{
+  "description": "Problem-to-drill data bank. Each entry maps a detectable form issue to the camera angle it's measured from, the pose metric used to detect it, its likely cause, and a corrective drill.",
+  "problems": [
+    {
+      "id": "flying_elbow",
+      "name": "Flying Elbow",
+      "detected_from": ["front", "back"],
+      "metric": "Elbow's horizontal distance from the shoulder-hip vertical line at set point/release",
+      "cause": "Shooting thumb positioned under the ball pointing straight left instead of at roughly a 45 degree angle",
+      "drill": "Wall/body drill: shoot with the elbow lightly brushing the torso to groove 'elbow under, not out'."
+    },
+    {
+      "id": "thumbing",
+      "name": "Thumbing the Ball",
+      "detected_from": ["front"],
+      "metric": "Guide-hand wrist movement/rotation in the frames immediately before release (proxy signal, since individual fingers are not tracked)",
+      "cause": "Guide hand stays on the ball too long and adds force instead of just balancing it",
+      "drill": "Guide-hand-off drill: hold the guide hand about 1 inch off the ball through the entire motion."
+    },
+    {
+      "id": "two_motion",
+      "name": "Two-Motion Shot / Hitch",
+      "detected_from": ["side"],
+      "metric": "Elbow-angle (or wrist-height) time series across the shot. One-motion shows a smooth continuous curve from dip to release; two-motion shows a pause or plateau at the set point.",
+      "cause": "Rushing the load, or a disconnect between leg drive timing and arm timing",
+      "drill": "Close-range form shooting (one-hand, then one-hand-plus-guide) until the motion is automatic before backing up to game range."
+    },
+    {
+      "id": "inconsistent_release",
+      "name": "Inconsistent Release Point / Arc",
+      "detected_from": ["side"],
+      "metric": "Variance in release angle and release height across the 5 recorded reps",
+      "cause": "Elbow extension or release timing changes from shot to shot",
+      "drill": "One-armed shooting drill to isolate the shooting arm and groove a repeatable release."
+    },
+    {
+      "id": "base_balance",
+      "name": "Base / Balance Issues",
+      "detected_from": ["front", "back", "side"],
+      "metric": "Foot width vs. shoulder width; landing-position drift relative to the starting spot",
+      "cause": "Feet too narrow or too wide, or drifting on the landing",
+      "drill": "Footwork drills alternating a two-foot hop and a 1-2 step, done close to the rim with a balance focus."
+    },
+    {
+      "id": "guide_hand_timing",
+      "name": "Guide Hand Timing",
+      "detected_from": ["front"],
+      "metric": "Frame where the guide hand separates from the ball, relative to the release frame",
+      "cause": "Guide hand leaves too early (loses ball control) or too late (interferes with release)",
+      "drill": "Same guide-hand-off drill, cued so the hand leaves exactly as the shooting arm extends, not before or during."
+    },
+    {
+      "id": "knee_bend",
+      "name": "Knee Bend / Leg Drive",
+      "detected_from": ["side"],
+      "metric": "Knee angle at load vs. at release, and whether leg extension timing lines up with arm extension",
+      "cause": "Shooting 'arm-only' without legs contributing power",
+      "drill": "Form shooting with an exaggerated pause at the dip, to feel the legs loading before the arm fires."
+    }
+  ]
+}

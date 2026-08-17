@@ -1,0 +1,59 @@
+{
+  "description": "Baseline shooting fundamentals shown to every user before their first session, regardless of what the pose analysis later detects.",
+  "cues": [
+    {
+      "id": "stance",
+      "title": "Stance",
+      "cue": "Feet shoulder-width apart, shooting-side foot slightly ahead, weight on the balls of your feet.",
+      "clip": null
+    },
+    {
+      "id": "hand_placement",
+      "title": "Hand Placement",
+      "cue": "Shooting hand behind/under the ball in the shot pocket. Guide hand on the side of the ball, not under it or pushing it.",
+      "clip": null
+    },
+    {
+      "id": "face_basket",
+      "title": "Face the Basket",
+      "cue": "Shoulders and hips squared directly to the rim.",
+      "clip": null
+    },
+    {
+      "id": "eyes",
+      "title": "Eyes on Target",
+      "cue": "Lock onto the target (front or back of rim) before you start your motion, and stay locked through release.",
+      "clip": null
+    },
+    {
+      "id": "elbow",
+      "title": "Elbow Position",
+      "cue": "Elbow tucked under the ball, stacked below the wrist, not flared out to the side.",
+      "clip": null
+    },
+    {
+      "id": "one_motion",
+      "title": "One Fluid Motion",
+      "cue": "The ball rises straight from the gather into the shot, no pause at the set point.",
+      "clip": null
+    },
+    {
+      "id": "release_timing",
+      "title": "Release Timing",
+      "cue": "Release on the way up. Never release on the way down.",
+      "clip": null
+    },
+    {
+      "id": "follow_through",
+      "title": "Follow-Through",
+      "cue": "Wrist snaps down, fingers point at the target, hold the follow-through until the ball hits the rim.",
+      "clip": null
+    },
+    {
+      "id": "landing",
+      "title": "Landing",
+      "cue": "Land balanced, ideally back where you jumped from.",
+      "clip": null
+    }
+  ]
+}
