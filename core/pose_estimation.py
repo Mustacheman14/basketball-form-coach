@@ -50,9 +50,15 @@ def run():
         num_poses=1,
     )
 
-    cap = cv2.VideoCapture(0)
+    # CAP_DSHOW avoids the extra buffering Windows' default MSMF backend adds,
+    # and a buffer size of 1 stops stale frames queuing up when processing
+    # can't quite keep pace with the camera's frame rate.
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
         raise RuntimeError("Could not open webcam (index 0).")
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     start_time = time.time()
 

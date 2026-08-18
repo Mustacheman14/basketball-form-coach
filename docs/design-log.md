@@ -109,3 +109,13 @@ This log tracks the major design decisions behind this project, why each was mad
 
 **Sources:**
 - [Pose landmark detection guide for Python | Google AI Edge](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/python)
+
+---
+
+## 9. Joint-angle geometry module
+
+**Decision:** `core/angle_math.py` computes the per-frame geometric values the problem bank needs: elbow angle (shoulder-elbow-wrist), knee angle (hip-knee-ankle), elbow lateral deviation (flying-elbow check), base width ratio (ankle spread vs. shoulder width), and wrist separation (guide-hand proximity check). Each takes a `side` ("left"/"right") argument rather than assuming a shooting hand, so it plugs directly into the handedness setting from decision #3. Values are normalized against torso/shoulder width where relevant, so they stay comparable regardless of how far the shooter is from the camera.
+
+**Why:** These are per-frame primitives only — variance across reps and event timing (e.g. when the guide hand separates from the ball) are time-series concerns that belong in the rep-detection state machine (decision #4), not here. Keeping this module to single-frame geometry keeps it independently testable.
+
+**AI's role:** Claude wrote the module and verified it against a live webcam frame before committing (angles came back in a plausible 0-180 degree range, base width ratio and lateral deviation in sane proportions) rather than trusting the math would work untested.
