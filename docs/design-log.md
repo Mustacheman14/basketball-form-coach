@@ -119,3 +119,15 @@ This log tracks the major design decisions behind this project, why each was mad
 **Why:** These are per-frame primitives only — variance across reps and event timing (e.g. when the guide hand separates from the ball) are time-series concerns that belong in the rep-detection state machine (decision #4), not here. Keeping this module to single-frame geometry keeps it independently testable.
 
 **AI's role:** Claude wrote the module and verified it against a live webcam frame before committing (angles came back in a plausible 0-180 degree range, base width ratio and lateral deviation in sane proportions) rather than trusting the math would work untested.
+
+---
+
+## 10. Rep detection state machine
+
+**Decision:** `core/rep_detection.py` implements the auto-detect rep counter from decision #4 as a 3-state machine: `idle -> rising` (shooting wrist crosses above the shoulder) `-> peaked` (wrist crosses above the nose, i.e. a release-height event) `-> back to idle` (wrist drops below the shoulder again), at which point one rep is counted. Per-frame metrics from `angle_math.py` are buffered during the active states and handed back as one record per completed rep, for aggregation across the 5 reps later. `manual_count_rep()` and `discard_current_rep()` implement the manual-override safety valve committed to in decision #4.
+
+**Why wrist-height-relative-to-shoulder/nose, not just elbow angle alone:** a shooter's elbow is bent both when holding the ball at rest and when loading a shot, so elbow angle alone doesn't cleanly separate "idle" from "about to shoot." Wrist height gives a clean rise-and-fall signal that actually matches the physical shape of a shot.
+
+**Limitation, honestly logged:** this can misfire on motion that isn't a real shot (e.g. raising a hand for another reason), which is exactly why the manual override exists rather than trusting auto-detection blindly. Real validation requires live testing against actual shooting motion — a scripted smoke test can only confirm the code runs without errors, not that it counts real shots correctly.
+
+**AI's role:** Claude designed the state machine, chose the wrist-height signal over elbow-angle-only after reasoning through why the latter is ambiguous at rest, implemented the manual-override methods per the earlier reliability decision, and ran a live 60-frame smoke test to confirm no exceptions before commit — full behavioral validation (does it count a real shot correctly) is flagged as needing the user's own live testing.
