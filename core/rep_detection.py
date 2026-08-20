@@ -22,11 +22,19 @@ STATE_IDLE = "idle"
 STATE_RISING = "rising"
 STATE_PEAKED = "peaked"
 
+# A real shot cycle (rising -> peaked -> back to idle) takes at least a few
+# hundred milliseconds. Landmark tracking jitters slightly frame to frame, so
+# without a minimum length, the wrist flickering across the shoulder-height
+# threshold during the descent (e.g. resetting into ready position) can look
+# like a full, extremely short cycle and get double-counted as a second rep.
+MIN_REP_FRAMES = 10
+
 
 class RepCounter:
-    def __init__(self, shooting_side, on_rep_complete=None):
+    def __init__(self, shooting_side, on_rep_complete=None, min_rep_frames=MIN_REP_FRAMES):
         self.shooting_side = shooting_side
         self.on_rep_complete = on_rep_complete
+        self.min_rep_frames = min_rep_frames
         self.state = STATE_IDLE
         self.rep_count = 0
         self._buffer = []
@@ -60,7 +68,13 @@ class RepCounter:
             if self.state == STATE_RISING and wrist_y < nose_y:
                 self.state = STATE_PEAKED
             elif self.state == STATE_PEAKED and wrist_y > shoulder_y:
-                self._complete_rep()
+                if len(self._buffer) >= self.min_rep_frames:
+                    self._complete_rep()
+                else:
+                    # Too short to be a real shot cycle -- likely jitter
+                    # crossing the threshold rather than an actual rep.
+                    self._buffer = []
+                    self.state = STATE_IDLE
 
         return self.state
 
