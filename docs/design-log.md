@@ -135,3 +135,13 @@ This log tracks the major design decisions behind this project, why each was mad
 **Follow-up bug found via real testing:** live testing (by the user, not an automated test) surfaced occasional double-counting. Root cause: the original state machine counted a rep as soon as the wrist crossed back below the shoulder line once, with no minimum duration, so landmark-tracking jitter during the arm's descent after a shot could flicker across that threshold for a couple of frames and register as a second, near-instant phantom rep. Fixed by requiring a completed rep to span at least `MIN_REP_FRAMES` (10) frames before it's accepted; shorter cycles are treated as noise and discarded rather than counted. `manual_count_rep()` intentionally bypasses this minimum, since that's an explicit user confirmation, not an inference.
 
 **Why this is worth logging:** the bug only showed up under real usage, not the earlier synthetic smoke test — a good example of why the design log distinguishes "code runs without errors" from "code behaves correctly," and why live testing by an actual user was called out as necessary rather than skipped.
+
+---
+
+## 11. Multi-angle session orchestrator
+
+**Decision:** `core/session.py`'s `AssessmentSession` sequences the 4 angles from decision #4 (front, strong-side, guide-side, back — named relative to the shooting hand, not literal room-left/right, so the same logic covers both left- and right-handed shooters), running a `RepCounter` for 5 reps at each before automatically advancing and prompting the user to move. Includes a `skip_to_next_angle()` escape hatch alongside the existing manual-count/discard overrides, in case an angle isn't converging cleanly.
+
+**Why "strong-side"/"guide-side" rather than room-left/room-right in the code:** keeps the handedness handling (decision #3) fully contained — the session and rep-counting logic never need to know or care which physical side of the room the camera is on, only which arm is shooting. Only the on-screen prompt text needs to differ per handedness.
+
+**AI's role:** Claude wrote the orchestrator, verified the angle-sequencing logic with a scripted test simulating 5 reps across all 4 angles before writing a single line of the live version (confirmed the transition logic worked in isolation from camera/pose complexity first), then built `live_session_test.py` as the live harness for the user to validate end-to-end.
