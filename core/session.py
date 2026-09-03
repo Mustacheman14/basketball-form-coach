@@ -15,22 +15,50 @@ REPS_PER_ANGLE = 5
 
 ANGLE_SEQUENCE = ["front", "strong_side", "guide_side", "back"]
 
-CAMERA_HEIGHT_NOTE = "Camera at chest/shoulder height (not waist, not overhead)"
+# Kept as short separate lines rather than one long string -- a single
+# concatenated sentence was running past the edge of the video frame.
+CAMERA_HEIGHT_LINE = "Camera at chest/shoulder height (not waist, not overhead)."
 
 ANGLE_PROMPTS = {
-    "front": f"Face the camera directly. {CAMERA_HEIGHT_NOTE}.",
-    "strong_side": f"Turn so your shooting arm faces the camera (stand sideways). {CAMERA_HEIGHT_NOTE}.",
-    "guide_side": f"Turn so your guide-hand arm faces the camera (stand sideways, other side). {CAMERA_HEIGHT_NOTE}.",
-    "back": f"Turn so your back faces the camera. {CAMERA_HEIGHT_NOTE}.",
+    "front": [
+        "Face the camera directly.",
+        CAMERA_HEIGHT_LINE,
+    ],
+    "strong_side": [
+        "Turn so your shooting arm faces the camera (stand sideways).",
+        CAMERA_HEIGHT_LINE,
+    ],
+    "guide_side": [
+        "Turn so your guide-hand arm faces the camera (other side).",
+        CAMERA_HEIGHT_LINE,
+    ],
+    "back": [
+        "Turn so your back faces the camera.",
+        CAMERA_HEIGHT_LINE,
+    ],
 }
+
+SESSION_COMPLETE_PROMPT = ["Session complete."]
+
+# Shown once before the session starts, not per angle -- distance from the
+# camera and from the hoop doesn't change between angles.
+PRE_SESSION_TIPS = [
+    "Stand about 8-10 ft back from the camera so your whole body fits in",
+    "frame, with some space above your head and around your feet.",
+    "",
+    "Shoot from a spot close enough that you make most of your shots",
+    "(e.g. the free-throw line or closer) -- this session is about form,",
+    "not range.",
+]
 
 
 class AssessmentSession:
-    def __init__(self, shooting_side, reps_per_angle=REPS_PER_ANGLE):
+    def __init__(self, shooting_side, reps_per_angle=REPS_PER_ANGLE, on_rep_complete=None):
         self.shooting_side = shooting_side
         self.reps_per_angle = reps_per_angle
         self.angle_index = 0
         self.results = {angle: [] for angle in ANGLE_SEQUENCE}
+        self._external_on_rep_complete = on_rep_complete
         self.counter = RepCounter(
             shooting_side=shooting_side, on_rep_complete=self._on_rep_complete
         )
@@ -42,9 +70,9 @@ class AssessmentSession:
         return ANGLE_SEQUENCE[self.angle_index]
 
     @property
-    def current_prompt(self):
+    def current_prompt_lines(self):
         angle = self.current_angle
-        return ANGLE_PROMPTS[angle] if angle else "Session complete."
+        return ANGLE_PROMPTS[angle] if angle else SESSION_COMPLETE_PROMPT
 
     @property
     def reps_done_this_angle(self):
@@ -75,12 +103,34 @@ class AssessmentSession:
         if not self.is_complete:
             self._advance_angle()
 
+    def remove_last_rep(self):
+        """Undo the most recently recorded rep. Handles the case where the
+        phantom rep was the one that just triggered auto-advance to a new
+        (otherwise empty) angle, by stepping back to the previous angle."""
+        angle = self.current_angle
+        if angle is None or not self.results[angle]:
+            if self.angle_index == 0:
+                return None
+            angle = ANGLE_SEQUENCE[self.angle_index - 1]
+            if not self.results[angle]:
+                return None
+            removed = self.results[angle].pop()
+            self.angle_index -= 1
+            self.counter.reset()
+            return removed
+
+        removed = self.results[angle].pop()
+        self.counter.rep_count = len(self.results[angle])
+        return removed
+
     def _on_rep_complete(self, rep_record):
         angle = self.current_angle
         if angle is None:
             return
         rep_record["angle"] = angle
         self.results[angle].append(rep_record)
+        if self._external_on_rep_complete:
+            self._external_on_rep_complete(rep_record)
         if len(self.results[angle]) >= self.reps_per_angle:
             self._advance_angle()
 

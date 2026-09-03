@@ -145,3 +145,24 @@ This log tracks the major design decisions behind this project, why each was mad
 **Why "strong-side"/"guide-side" rather than room-left/room-right in the code:** keeps the handedness handling (decision #3) fully contained — the session and rep-counting logic never need to know or care which physical side of the room the camera is on, only which arm is shooting. Only the on-screen prompt text needs to differ per handedness.
 
 **AI's role:** Claude wrote the orchestrator, verified the angle-sequencing logic with a scripted test simulating 5 reps across all 4 angles before writing a single line of the live version (confirmed the transition logic worked in isolation from camera/pose complexity first), then built `live_session_test.py` as the live harness for the user to validate end-to-end.
+
+---
+
+## 12. Real-world testing batch: counting reliability, UI, and outcome tracking
+
+Live testing surfaced a large batch of problems at once. Root-caused and fixed together since several shared one cause:
+
+**Root cause of most counting failures:** the "peaked" (release-height) check depended on the nose landmark. That's reliable from the front, but the face isn't visible to the camera at all from the back angle, and only partially from the side angles -- MediaPipe still returns a guessed nose position with low confidence rather than failing outright, which made rep detection unreliable specifically on strong-side, guide-side, and worst on back (matches exactly what was reported: front mostly over-counted, back under-counted, sides did both). **Fix:** replaced the nose reference with a threshold scaled to the shooter's own torso height (shoulder-to-hip distance) -- both landmarks are visible from all 4 angles, so the release-height check no longer depends on the camera seeing the face.
+
+**Compounding causes:** raw wrist-height had no smoothing (frame-to-frame jitter could flip a threshold check), and there was no cooldown after a rep completed (the arm settling from follow-through could immediately re-trigger a second count) -- this explains the "counted as two" and "bled into the next angle" reports specifically. Fixed with a 4-frame rolling average on the wrist-height signal and an 8-frame cooldown after each completed rep.
+
+**Verification:** before trusting this, ran a synthetic test with an unrealistically short tail after the release -- it caught a real bug in the fix itself (the smoothing lag meant a rep never completed at all with too few resting frames afterward). Re-ran with a frame count representative of real 30fps footage, which passed cleanly. Worth logging as a case where testing the fix caught a problem in the fix, not just in the original code.
+
+**Other fixes in this batch:**
+- **Fullscreen / black-bar bug:** the OpenCV window wasn't being set to fullscreen or resized to the display -- the native 640x480 frame sat in a corner of a bigger black window when maximized. Fixed with `cv2.setWindowProperty(..., WINDOW_FULLSCREEN)` plus resizing the frame to the actual screen resolution before display.
+- **Prompt text running off-screen:** prompts were single long concatenated strings; restructured `ANGLE_PROMPTS` in `session.py` into short line-lists rendered one per row instead.
+- **Manual "remove last rep" undo:** `AssessmentSession.remove_last_rep()` added, including handling the case where the phantom rep was the one that triggered auto-advance to a new angle (steps back to the previous angle rather than leaving it stranded).
+- **Pre-session tips screen:** `show_pre_session_tips()` in the live harness now prints the 9 fundamentals cues (`data/fundamentals.json`) plus camera-distance (~8-10 ft back, full body in frame) and hoop-distance guidance (close enough to make most shots -- this is a form session, not a range test) before the camera opens.
+- **Shot outcome tracking:** after every rep, `prompt_outcome()` asks make/miss, and for a miss, asks which of 14 specific miss types (short, long, left/right combinations, rim-outs, airballs by direction). This data isn't used yet -- it's being captured now so the feedback-generation step (deferred, per an explicit decision to fix the detection pipeline first) has it available later.
+
+**AI's role:** Claude diagnosed the nose-landmark root cause by reasoning through which physical camera angles failed and connecting that to which landmarks would be unreliable from those angles, rather than guessing at threshold tuning; verified the fix with synthetic tests (which caught a self-introduced bug before the user ever saw it); and implemented the remaining UI/data-capture requests as a batch.
