@@ -15,11 +15,13 @@ REPS_PER_ANGLE = 5
 
 ANGLE_SEQUENCE = ["front", "strong_side", "guide_side", "back"]
 
+CAMERA_HEIGHT_NOTE = "Camera at chest/shoulder height (not waist, not overhead)"
+
 ANGLE_PROMPTS = {
-    "front": "Face the camera directly.",
-    "strong_side": "Turn so your shooting arm faces the camera (stand sideways).",
-    "guide_side": "Turn so your guide-hand arm faces the camera (stand sideways, other side).",
-    "back": "Turn so your back faces the camera.",
+    "front": f"Face the camera directly. {CAMERA_HEIGHT_NOTE}.",
+    "strong_side": f"Turn so your shooting arm faces the camera (stand sideways). {CAMERA_HEIGHT_NOTE}.",
+    "guide_side": f"Turn so your guide-hand arm faces the camera (stand sideways, other side). {CAMERA_HEIGHT_NOTE}.",
+    "back": f"Turn so your back faces the camera. {CAMERA_HEIGHT_NOTE}.",
 }
 
 
