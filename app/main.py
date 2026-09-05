@@ -6,8 +6,10 @@ Run with: streamlit run app/main.py
 """
 
 import json
+import sys
 import threading
 import time
+from pathlib import Path
 
 import av
 import cv2
@@ -16,6 +18,12 @@ import streamlit as st
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.core.base_options import BaseOptions
 from streamlit_webrtc import webrtc_streamer
+
+# `streamlit run` executes this file as a standalone script, so only its own
+# directory (app/) is added to sys.path -- the project root has to be added
+# manually for `core` to be importable, the same issue hit earlier with
+# `python core/live_rep_test.py` vs `python -m core.live_rep_test`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.pose_estimation import MODEL_PATH, draw_skeleton
 from core.session import AssessmentSession, PRE_SESSION_TIPS
