@@ -77,6 +77,7 @@ class RepCounter:
         self._buffer = []
         self._wrist_y_window = deque(maxlen=SMOOTHING_WINDOW)
         self._cooldown = 0
+        self.debug = {}
 
     def reset(self):
         self.state = STATE_IDLE
@@ -84,6 +85,7 @@ class RepCounter:
         self._buffer = []
         self._wrist_y_window.clear()
         self._cooldown = 0
+        self.debug = {}
 
     def update(self, landmarks):
         """Feed one frame's landmarks in. Returns the current state."""
@@ -95,12 +97,22 @@ class RepCounter:
         self._wrist_y_window.append(wrist_y)
         smoothed_wrist_y = sum(self._wrist_y_window) / len(self._wrist_y_window)
 
+        torso_height = abs(hip_y - shoulder_y)
+        release_y = shoulder_y - self.release_height_ratio * torso_height
+
+        self.debug = {
+            "wrist_y": wrist_y,
+            "smoothed_wrist_y": smoothed_wrist_y,
+            "shoulder_y": shoulder_y,
+            "torso_height": torso_height,
+            "release_y": release_y,
+            "state": self.state,
+            "cooldown": self._cooldown,
+        }
+
         if self._cooldown > 0:
             self._cooldown -= 1
             return self.state
-
-        torso_height = abs(hip_y - shoulder_y)
-        release_y = shoulder_y - self.release_height_ratio * torso_height
 
         if self.state == STATE_IDLE:
             if smoothed_wrist_y < shoulder_y:

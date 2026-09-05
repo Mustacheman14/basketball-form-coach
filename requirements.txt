@@ -1,6 +1,6 @@
 streamlit
 streamlit-webrtc
 mediapipe
-opencv-python
+opencv-python-headless>=4.10,<5
 numpy
 anthropic

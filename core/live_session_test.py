@@ -27,6 +27,8 @@ FUNDAMENTALS_PATH = "data/fundamentals.json"
 MISS_TYPES = [
     "Hit the front rim, bounced out",
     "Hit the back rim, bounced out",
+    "Hit the left side of the rim, bounced out",
+    "Hit the right side of the rim, bounced out",
     "Too low (short)",
     "Too low and right",
     "Too low and left",
@@ -79,11 +81,23 @@ def get_screen_resolution():
     return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 
 
-def draw_lines(frame, lines, start_y, font_scale=0.7, color=(255, 255, 0), line_height=32):
+def draw_lines(frame, lines, start_y, font_scale=0.7, color=(255, 255, 0), line_height=32, x=10):
     for i, line in enumerate(lines):
         if line:
-            cv2.putText(frame, line, (10, start_y + i * line_height),
+            cv2.putText(frame, line, (x, start_y + i * line_height),
                         cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 2)
+
+
+def draw_debug_hud(frame, debug, screen_w):
+    if not debug:
+        return
+    lines = [
+        f"[debug] state={debug.get('state')} cooldown={debug.get('cooldown')}",
+        f"wrist_y={debug.get('wrist_y', 0):.3f} smoothed={debug.get('smoothed_wrist_y', 0):.3f}",
+        f"shoulder_y={debug.get('shoulder_y', 0):.3f} release_y={debug.get('release_y', 0):.3f}",
+        f"torso_height={debug.get('torso_height', 0):.3f}",
+    ]
+    draw_lines(frame, lines, 30, font_scale=0.6, color=(0, 200, 255), line_height=28, x=screen_w - 500)
 
 
 def run():
@@ -99,7 +113,8 @@ def run():
         num_poses=1,
     )
 
-    session = AssessmentSession(shooting_side=side, on_rep_complete=prompt_outcome)
+    pending_outcomes = []
+    session = AssessmentSession(shooting_side=side, on_rep_complete=pending_outcomes.append)
 
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
@@ -129,10 +144,18 @@ def run():
             result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
             state = "no_pose"
-            if result.pose_landmarks and not session.is_complete:
-                landmarks = result.pose_landmarks[0]
-                draw_skeleton(frame, landmarks)
-                state = session.update(landmarks)
+            if not session.is_complete:
+                if result.pose_landmarks:
+                    landmarks = result.pose_landmarks[0]
+                    draw_skeleton(frame, landmarks)
+                    state = session.update(landmarks)
+                else:
+                    # Tracking lost (e.g. stepped out of frame). Discard
+                    # anything in progress rather than leaving stale state
+                    # that could misfire once tracking resumes.
+                    session.discard_current_rep()
+
+            draw_debug_hud(frame, session.counter.debug, screen_w=frame.shape[1])
 
             # Upscale to the screen resolution so the fullscreen window is
             # actually filled, rather than showing the native 640x480 frame
@@ -152,6 +175,13 @@ def run():
                 screen_h - 30, font_scale=0.6, color=(200, 200, 200), line_height=0,
             )
 
+            if pending_outcomes:
+                draw_lines(
+                    frame,
+                    ["REP COUNTED -- switch to the terminal to log make/miss"],
+                    screen_h // 2, font_scale=1.0, color=(0, 0, 255),
+                )
+
             cv2.imshow(window_name, frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
@@ -166,6 +196,11 @@ def run():
                 removed = session.remove_last_rep()
                 if removed:
                     print(f"Removed rep {removed['rep_number']} from {removed['angle']}")
+
+            # Process outcome prompts only after the "REP COUNTED" frame has
+            # actually been shown, so the terminal block isn't a surprise.
+            while pending_outcomes:
+                prompt_outcome(pending_outcomes.pop(0))
 
     cap.release()
     cv2.destroyAllWindows()
