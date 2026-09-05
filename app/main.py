@@ -186,10 +186,12 @@ def main():
 
     status = st.empty()
     progress = st.empty()
+    debug_panel = st.empty()
 
     while webrtc_ctx.state.playing:
         with coach.lock:
             session = coach.session
+            debug = dict(session.counter.debug)
             if session.is_complete:
                 complete = True
                 results_summary = {angle: len(reps) for angle, reps in session.results.items()}
@@ -207,6 +209,15 @@ def main():
 
         status.markdown(f"### {angle}\n" + "\n".join(prompt_lines))
         progress.progress(reps_done / reps_total, text=f"{reps_done}/{reps_total} reps")
+
+        if debug:
+            debug_panel.code(
+                f"state={debug.get('state')} cooldown={debug.get('cooldown')}\n"
+                f"wrist_y={debug.get('wrist_y', 0):.3f} smoothed={debug.get('smoothed_wrist_y', 0):.3f}\n"
+                f"shoulder_y={debug.get('shoulder_y', 0):.3f} release_y={debug.get('release_y', 0):.3f}\n"
+                f"torso_height={debug.get('torso_height', 0):.3f}"
+            )
+
         time.sleep(0.3)
 
 
