@@ -48,8 +48,13 @@ STATE_PEAKED = "peaked"
 MIN_REP_FRAMES = 10
 
 # How far above the shoulder, in torso-heights, the wrist must rise to
-# count as a release-height event.
-RELEASE_HEIGHT_RATIO = 0.8
+# count as a release-height event. Kept deliberately lenient -- the goal is
+# to catch anything resembling a real shot attempt, not to gatekeep on
+# textbook-perfect release height. A missed or double-counted rep is a
+# one-tap fix (see AssessmentSession.force_add_rep / remove_last_rep); a
+# threshold so strict it requires exaggerated form is worse than an
+# occasional miscounted rep.
+RELEASE_HEIGHT_RATIO = 0.5
 
 # Frames of rolling average applied to the wrist-height signal before it's
 # compared against thresholds, to absorb single-frame tracking jitter.
@@ -145,10 +150,17 @@ class RepCounter:
 
     def manual_count_rep(self):
         """Force-complete the current buffer as a rep, for a shot the
-        auto-detector missed."""
+        auto-detector missed partway through (it started tracking a rise
+        but never registered the full cycle)."""
         if self._buffer:
             return self._complete_rep()
         return None
+
+    def force_add_rep(self):
+        """Add a rep regardless of state, including when the auto-detector
+        never registered any motion at all (no buffer to complete). The
+        full manual override for a shot missed completely."""
+        return self._complete_rep()
 
     def discard_current_rep(self):
         """Clear the current buffer without counting it, for motion the

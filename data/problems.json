@@ -20,7 +20,7 @@
     {
       "id": "two_motion",
       "name": "Two-Motion Shot / Hitch",
-      "detected_from": ["side"],
+      "detected_from": ["strong_side", "guide_side"],
       "metric": "Elbow-angle (or wrist-height) time series across the shot. One-motion shows a smooth continuous curve from dip to release; two-motion shows a pause or plateau at the set point.",
       "cause": "Rushing the load, or a disconnect between leg drive timing and arm timing",
       "drill": "Close-range form shooting (one-hand, then one-hand-plus-guide) until the motion is automatic before backing up to game range."
@@ -28,7 +28,7 @@
     {
       "id": "inconsistent_release",
       "name": "Inconsistent Release Point / Arc",
-      "detected_from": ["side"],
+      "detected_from": ["strong_side", "guide_side"],
       "metric": "Variance in release angle and release height across the 5 recorded reps",
       "cause": "Elbow extension or release timing changes from shot to shot",
       "drill": "One-armed shooting drill to isolate the shooting arm and groove a repeatable release."
@@ -36,8 +36,8 @@
     {
       "id": "base_balance",
       "name": "Base / Balance Issues",
-      "detected_from": ["front", "back", "side"],
-      "metric": "Foot width vs. shoulder width; landing-position drift relative to the starting spot",
+      "detected_from": ["front", "back"],
+      "metric": "Foot width vs. shoulder width (front/back only -- from a side view the two feet are nearly in line with the camera's depth axis, which compresses this measurement regardless of true stance width)",
       "cause": "Feet too narrow or too wide, or drifting on the landing",
       "drill": "Footwork drills alternating a two-foot hop and a 1-2 step, done close to the rim with a balance focus."
     },
@@ -52,7 +52,7 @@
     {
       "id": "knee_bend",
       "name": "Knee Bend / Leg Drive",
-      "detected_from": ["side"],
+      "detected_from": ["strong_side", "guide_side"],
       "metric": "Knee angle at load vs. at release, and whether leg extension timing lines up with arm extension",
       "cause": "Shooting 'arm-only' without legs contributing power",
       "drill": "Form shooting with an exaggerated pause at the dip, to feel the legs loading before the arm fires."

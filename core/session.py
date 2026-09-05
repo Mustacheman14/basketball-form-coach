@@ -19,6 +19,14 @@ ANGLE_SEQUENCE = ["front", "strong_side", "guide_side", "back"]
 # concatenated sentence was running past the edge of the video frame.
 CAMERA_HEIGHT_LINE = "Camera at chest/shoulder height (not waist, not overhead)."
 
+# Strict 90-degree profile shots are harder for MediaPipe's pose model to
+# track reliably (more of the body is self-occluded, and the model sees
+# fewer purely-side-on poses in training) -- a slight turn toward the
+# camera keeps more of the body visible without losing the side-on view the
+# angle needs. This came from real testing: tracking was noticeably more
+# reliable turned slightly in than perfectly perpendicular.
+SIDE_ANGLE_TIP = "Turn slightly toward the camera rather than a strict 90-degree profile."
+
 ANGLE_PROMPTS = {
     "front": [
         "Face the camera directly.",
@@ -26,14 +34,17 @@ ANGLE_PROMPTS = {
     ],
     "strong_side": [
         "Turn so your shooting arm faces the camera (stand sideways).",
+        SIDE_ANGLE_TIP,
         CAMERA_HEIGHT_LINE,
     ],
     "guide_side": [
         "Turn so your guide-hand arm faces the camera (other side).",
+        SIDE_ANGLE_TIP,
         CAMERA_HEIGHT_LINE,
     ],
     "back": [
         "Turn so your back faces the camera.",
+        "Shoot naturally -- no need to exaggerate your jump or release height.",
         CAMERA_HEIGHT_LINE,
     ],
 }
@@ -49,6 +60,9 @@ PRE_SESSION_TIPS = [
     "Shoot from a spot close enough that you make most of your shots",
     "(e.g. the free-throw line or closer) -- this session is about form,",
     "not range.",
+    "",
+    "Rep counting won't be perfect -- if it misses a shot or double-counts,",
+    "use the Add Rep / Undo Last Rep buttons to correct it yourself.",
 ]
 
 
@@ -92,6 +106,13 @@ class AssessmentSession:
         if self.is_complete:
             return None
         return self.counter.manual_count_rep()
+
+    def force_add_rep(self):
+        """Add a rep even when auto-detection registered no motion at all
+        for this shot."""
+        if self.is_complete:
+            return None
+        return self.counter.force_add_rep()
 
     def discard_current_rep(self):
         if not self.is_complete:
