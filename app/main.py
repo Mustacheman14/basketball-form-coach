@@ -162,17 +162,21 @@ def show_pre_session_tips():
 
 
 def render_outcome_form(coach, rep_record):
-    st.warning(
-        f"Rep {rep_record['rep_number']} ({rep_record['angle'].replace('_', ' ')}) "
-        f"counted -- log the outcome before the next shot:"
-    )
-    with st.form(key=f"outcome_{rep_record['angle']}_{rep_record['rep_number']}"):
+    """Shown as a centered modal (st.dialog) rather than an inline form, so
+    it's an unmissable popup instead of something below/beside the video
+    that could go unnoticed. Note: this only overlays the Streamlit page --
+    it cannot render on top of the video if the video itself is put into
+    the browser's own native fullscreen mode, since nothing on a page can
+    draw over a natively-fullscreened element. Keep the browser window
+    maximized instead of fullscreening just the video for this to work."""
+
+    @st.dialog(f"Log rep {rep_record['rep_number']} ({rep_record['angle'].replace('_', ' ')})")
+    def outcome_dialog():
         made = st.radio("Made it?", ["Make", "Miss"], horizontal=True)
         miss_type = None
         if made == "Miss":
             miss_type = st.selectbox("Miss type", MISS_TYPES)
-        submitted = st.form_submit_button("Log outcome")
-        if submitted:
+        if st.button("Log outcome", type="primary"):
             with coach.lock:
                 rep_record["outcome"] = (
                     {"made": True} if made == "Make"
@@ -181,6 +185,8 @@ def render_outcome_form(coach, rep_record):
                 if rep_record in coach.pending_outcomes:
                     coach.pending_outcomes.remove(rep_record)
             st.rerun(scope="fragment")
+
+    outcome_dialog()
 
 
 def render_session_controls(coach):
