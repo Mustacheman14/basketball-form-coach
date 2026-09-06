@@ -25,8 +25,9 @@ from streamlit_webrtc import webrtc_streamer
 # `python core/live_rep_test.py` vs `python -m core.live_rep_test`.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from core.feedback import generate_report
 from core.pose_estimation import MODEL_PATH, draw_skeleton
-from core.session import AssessmentSession, PRE_SESSION_TIPS
+from core.session import ANGLE_SEQUENCE, AssessmentSession, PRE_SESSION_TIPS
 
 FUNDAMENTALS_PATH = "data/fundamentals.json"
 
@@ -48,6 +49,15 @@ MISS_TYPES = [
     "Airball - too right",
     "Airball - too left",
 ]
+
+CUSTOM_CSS = """
+<style>
+.block-container { padding-top: 2rem; max-width: 1100px; }
+h1 { font-weight: 700; }
+div[data-testid="stMetricValue"] { font-size: 1.8rem; }
+.stProgress > div > div { background-color: #ff6b35; }
+</style>
+"""
 
 
 class LiveCoach:
@@ -86,7 +96,37 @@ class LiveCoach:
                     self.session.update(landmarks)
                 else:
                     self.session.discard_current_rep()
+
+            self._draw_overlay(frame_bgr)
         return frame_bgr
+
+    def _draw_overlay(self, frame_bgr):
+        """Baked directly into the video pixels (not a separate Streamlit
+        element) so the key info -- angle, prompt, rep count -- stays
+        visible even when the video itself is fullscreened, which hides
+        everything else on the page."""
+        session = self.session
+        if session.is_complete:
+            cv2.putText(frame_bgr, "SESSION COMPLETE", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            return
+
+        y = 25
+        angle_label = session.current_angle.replace("_", " ").title()
+        cv2.putText(frame_bgr, angle_label, (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        y += 25
+        for line in session.current_prompt_lines:
+            if line:
+                cv2.putText(frame_bgr, line, (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
+                y += 20
+        y += 5
+        cv2.putText(
+            frame_bgr,
+            f"reps: {session.reps_done_this_angle}/{session.reps_per_angle}",
+            (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2,
+        )
 
 
 def make_video_frame_callback(coach):
@@ -114,15 +154,17 @@ def show_pre_session_tips():
         if line:
             st.markdown(line)
 
+    st.info(
+        "This is an automated detector, not a referee -- it will sometimes miss a "
+        "rep or double-count one. Use the buttons during the session to add or "
+        "remove a rep yourself when that happens."
+    )
 
-def render_outcome_form(coach):
-    with coach.lock:
-        if not coach.pending_outcomes:
-            return
-        rep_record = coach.pending_outcomes[0]
 
+def render_outcome_form(coach, rep_record):
     st.warning(
-        f"Rep {rep_record['rep_number']} ({rep_record['angle']}) counted -- log the outcome:"
+        f"Rep {rep_record['rep_number']} ({rep_record['angle'].replace('_', ' ')}) "
+        f"counted -- log the outcome before the next shot:"
     )
     with st.form(key=f"outcome_{rep_record['angle']}_{rep_record['rep_number']}"):
         made = st.radio("Made it?", ["Make", "Miss"], horizontal=True)
@@ -136,39 +178,81 @@ def render_outcome_form(coach):
                     {"made": True} if made == "Make"
                     else {"made": False, "miss_type": miss_type}
                 )
-                coach.pending_outcomes.pop(0)
-            st.rerun()
+                if rep_record in coach.pending_outcomes:
+                    coach.pending_outcomes.remove(rep_record)
+            st.rerun(scope="fragment")
 
 
 def render_session_controls(coach):
-    col1, col2, col3, col4 = st.columns(4)
+    st.caption(
+        "Detection isn't perfect -- use these if it misses a shot or gets a count wrong."
+    )
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        if st.button("Manual count"):
+        if st.button("Manual count", help="Complete a shot the detector started tracking but never finished"):
             with coach.lock:
                 coach.session.manual_count_rep()
-            st.rerun()
+            st.rerun(scope="fragment")
     with col2:
-        if st.button("Discard current"):
+        if st.button("Force add rep", help="Add a rep even if the detector saw no motion at all"):
+            with coach.lock:
+                coach.session.force_add_rep()
+            st.rerun(scope="fragment")
+    with col3:
+        if st.button("Discard current", help="Clear a false trigger the detector is mid-tracking"):
             with coach.lock:
                 coach.session.discard_current_rep()
-            st.rerun()
-    with col3:
-        if st.button("Skip angle"):
+            st.rerun(scope="fragment")
+    with col4:
+        if st.button("Skip angle", help="Move on even without a full 5 reps"):
             with coach.lock:
                 coach.session.skip_to_next_angle()
-            st.rerun()
-    with col4:
-        if st.button("Undo last rep"):
+            st.rerun(scope="fragment")
+    with col5:
+        if st.button("Undo last rep", help="Remove the most recently counted rep"):
             with coach.lock:
                 removed = coach.session.remove_last_rep()
             if removed:
-                st.info(f"Removed rep {removed['rep_number']} from {removed['angle']}")
-            st.rerun()
+                st.toast(f"Removed rep {removed['rep_number']} from {removed['angle']}")
+            st.rerun(scope="fragment")
+
+
+def render_report(results):
+    report = generate_report(results)
+    stats = report["stats"]
+
+    st.subheader("Shooting")
+    if stats["total"]:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Makes", stats["makes"])
+        col2.metric("Misses", stats["misses"])
+        col3.metric("Make %", f"{stats['make_pct']:.0f}%")
+        if stats["miss_type_counts"]:
+            st.caption("Miss breakdown:")
+            for miss_type, count in sorted(stats["miss_type_counts"].items(), key=lambda kv: -kv[1]):
+                st.markdown(f"- {miss_type}: {count}")
+    else:
+        st.caption("No shot outcomes were logged this session.")
+
+    st.subheader("Form")
+    if report["form_flags"]:
+        st.caption(
+            "These are first-pass, unverified thresholds -- treat them as things "
+            "worth a second look, not a diagnosis."
+        )
+        for flag in report["form_flags"]:
+            with st.container(border=True):
+                st.markdown(f"**{flag['name']}**")
+                st.caption(flag["cause"])
+                st.markdown(f"Drill: {flag['drill']}")
+    else:
+        st.success("No form issues stood out from this session's data.")
 
 
 def main():
-    st.set_page_config(page_title="Basketball Shooting Form Coach", layout="wide")
-    st.title("Basketball Shooting Form Coach")
+    st.set_page_config(page_title="Basketball Shooting Form Coach", page_icon="🏀", layout="wide")
+    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+    st.title("🏀 Basketball Shooting Form Coach")
 
     if "coach" not in st.session_state:
         st.session_state.coach = None
@@ -176,57 +260,66 @@ def main():
     if st.session_state.coach is None:
         side = st.radio("Shooting hand", ["right", "left"], horizontal=True)
         show_pre_session_tips()
-        if st.button("Start session"):
+        if st.button("Start session", type="primary"):
             st.session_state.coach = LiveCoach(shooting_side=side)
             st.rerun()
         return
 
     coach = st.session_state.coach
 
-    webrtc_ctx = webrtc_streamer(
-        key="assessment-session",
-        video_frame_callback=make_video_frame_callback(coach),
-        media_stream_constraints={"video": True, "audio": False},
-    )
+    video_col, panel_col = st.columns([3, 2])
+    with video_col:
+        webrtc_ctx = webrtc_streamer(
+            key="assessment-session",
+            video_frame_callback=make_video_frame_callback(coach),
+            media_stream_constraints={"video": True, "audio": False},
+        )
 
-    render_outcome_form(coach)
-    render_session_controls(coach)
+    with panel_col:
+        live_panel(coach, webrtc_ctx)
 
-    status = st.empty()
-    progress = st.empty()
-    debug_panel = st.empty()
 
-    while webrtc_ctx.state.playing:
+@st.fragment(run_every=0.4)
+def live_panel(coach, webrtc_ctx):
+    with coach.lock:
+        session = coach.session
+        debug = dict(session.counter.debug)
+        pending_rep = coach.pending_outcomes[0] if coach.pending_outcomes else None
+        complete = session.is_complete
+        if not complete:
+            angle = session.current_angle
+            reps_done = session.reps_done_this_angle
+            reps_total = session.reps_per_angle
+            angle_number = ANGLE_SEQUENCE.index(angle) + 1
+
+    if complete:
+        st.success("Session complete!")
         with coach.lock:
-            session = coach.session
-            debug = dict(session.counter.debug)
-            if session.is_complete:
-                complete = True
-                results_summary = {angle: len(reps) for angle, reps in session.results.items()}
-            else:
-                complete = False
-                angle = session.current_angle
-                prompt_lines = list(session.current_prompt_lines)
-                reps_done = session.reps_done_this_angle
-                reps_total = session.reps_per_angle
+            results_copy = {a: list(r) for a, r in session.results.items()}
+        render_report(results_copy)
+        return
 
-        if complete:
-            status.success("Session complete!")
-            progress.write(results_summary)
-            break
+    st.markdown(f"### Angle {angle_number}/{len(ANGLE_SEQUENCE)}: {angle.replace('_', ' ').title()}")
+    st.progress(reps_done / reps_total, text=f"{reps_done}/{reps_total} reps this angle")
 
-        status.markdown(f"### {angle}\n" + "\n".join(prompt_lines))
-        progress.progress(reps_done / reps_total, text=f"{reps_done}/{reps_total} reps")
+    if pending_rep:
+        render_outcome_form(coach, pending_rep)
+    else:
+        render_session_controls(coach)
 
+    with st.expander("Debug info (tuning detection, not needed for normal use)"):
         if debug:
-            debug_panel.code(
+            st.code(
                 f"state={debug.get('state')} cooldown={debug.get('cooldown')}\n"
                 f"wrist_y={debug.get('wrist_y', 0):.3f} smoothed={debug.get('smoothed_wrist_y', 0):.3f}\n"
                 f"shoulder_y={debug.get('shoulder_y', 0):.3f} release_y={debug.get('release_y', 0):.3f}\n"
                 f"torso_height={debug.get('torso_height', 0):.3f}"
             )
+        else:
+            st.caption("No frames processed yet.")
 
-        time.sleep(0.3)
+    if not webrtc_ctx.state.playing:
+        st.warning("Camera not connected -- start the video stream above.")
 
 
 if __name__ == "__main__":
