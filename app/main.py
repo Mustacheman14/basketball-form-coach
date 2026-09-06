@@ -56,6 +56,12 @@ CUSTOM_CSS = """
 h1 { font-weight: 700; }
 div[data-testid="stMetricValue"] { font-size: 1.8rem; }
 .stProgress > div > div { background-color: #ff6b35; }
+div[data-testid="stButton"] button { white-space: nowrap; }
+/* Hide the browser's native fullscreen control on the video so users can't
+   get stuck in a state where nothing (including the outcome popup) can
+   render on top of it. Chromium/WebKit only -- Firefox doesn't expose an
+   equivalent pseudo-element, so this control may still appear there. */
+video::-webkit-media-controls-fullscreen-button { display: none !important; }
 </style>
 """
 
@@ -184,7 +190,11 @@ def render_outcome_form(coach, rep_record):
                 )
                 if rep_record in coach.pending_outcomes:
                     coach.pending_outcomes.remove(rep_record)
-            st.rerun(scope="fragment")
+            # A plain (non-fragment-scoped) rerun here -- the dialog was
+            # staying open with a fragment-scoped rerun, since a dialog's
+            # open/closed state appears to be tracked at the full-app level
+            # rather than per-fragment.
+            st.rerun()
 
     outcome_dialog()
 
@@ -195,27 +205,27 @@ def render_session_controls(coach):
     )
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        if st.button("Manual count", help="Complete a shot the detector started tracking but never finished"):
+        if st.button("Manual", help="Complete a shot the detector started tracking but never finished", use_container_width=True):
             with coach.lock:
                 coach.session.manual_count_rep()
             st.rerun(scope="fragment")
     with col2:
-        if st.button("Force add rep", help="Add a rep even if the detector saw no motion at all"):
+        if st.button("Force Add", help="Add a rep even if the detector saw no motion at all", use_container_width=True):
             with coach.lock:
                 coach.session.force_add_rep()
             st.rerun(scope="fragment")
     with col3:
-        if st.button("Discard current", help="Clear a false trigger the detector is mid-tracking"):
+        if st.button("Discard", help="Clear a false trigger the detector is mid-tracking", use_container_width=True):
             with coach.lock:
                 coach.session.discard_current_rep()
             st.rerun(scope="fragment")
     with col4:
-        if st.button("Skip angle", help="Move on even without a full 5 reps"):
+        if st.button("Skip", help="Move on even without a full 5 reps", use_container_width=True):
             with coach.lock:
                 coach.session.skip_to_next_angle()
             st.rerun(scope="fragment")
     with col5:
-        if st.button("Undo last rep", help="Remove the most recently counted rep"):
+        if st.button("Undo", help="Remove the most recently counted rep", use_container_width=True):
             with coach.lock:
                 removed = coach.session.remove_last_rep()
             if removed:
@@ -273,16 +283,26 @@ def main():
 
     coach = st.session_state.coach
 
-    video_col, panel_col = st.columns([3, 2])
-    with video_col:
-        webrtc_ctx = webrtc_streamer(
-            key="assessment-session",
-            video_frame_callback=make_video_frame_callback(coach),
-            media_stream_constraints={"video": True, "audio": False},
-        )
+    webrtc_ctx = webrtc_streamer(
+        key="assessment-session",
+        video_frame_callback=make_video_frame_callback(coach),
+        media_stream_constraints={
+            # Constrained deliberately -- an unconstrained request often
+            # defaults to a much higher capture resolution/frame rate than
+            # needed here, which adds real encode/decode and processing
+            # overhead on every frame and was contributing to visible lag.
+            "video": {
+                "width": {"ideal": 640},
+                "height": {"ideal": 480},
+                "frameRate": {"ideal": 15, "max": 20},
+            },
+            "audio": False,
+        },
+    )
 
-    with panel_col:
-        live_panel(coach, webrtc_ctx)
+    # Full page width rather than a narrow side column -- squeezing 5
+    # buttons into a partial-width column was breaking their labels mid-word.
+    live_panel(coach, webrtc_ctx)
 
 
 @st.fragment(run_every=0.4)
